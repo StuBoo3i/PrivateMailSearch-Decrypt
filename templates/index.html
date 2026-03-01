@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>隐私邮件系统</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f4f6f9;
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            color: #333;
+        }
+        .main-container {
+            max-width: 1200px;
+            margin: 30px auto;
+        }
+        .card {
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            transition: transform 0.2s;
+            height: 100%; /* 确保左右卡片高度一致 */
+            display: flex;
+            flex-direction: column;
+        }
+        .card-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 12px 12px 0 0 !important;
+            padding: 15px 20px;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .card-header.success {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        }
+        .card-header.info {
+            background: linear-gradient(135deg, #2193b0 0%, #6dd5ed 100%);
+        }
+        .card-body {
+            padding: 20px;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        .content-box {
+            background-color: #fff;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 15px;
+            height: 400px; /* 固定高度 */
+            overflow-y: auto;
+            flex-grow: 1;
+            font-size: 0.95rem;
+        }
+        .message-item {
+            background-color: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        .message-item:hover {
+            background-color: #eef2ff;
+            transform: translateX(5px);
+        }
+        .status-badge {
+            font-size: 0.75rem;
+            padding: 4px 8px;
+            border-radius: 20px;
+            background-color: rgba(255,255,255,0.2);
+            color: white;
+        }
+        .key-alert {
+            border-radius: 10px;
+            border: none;
+            background-color: #e3f2fd;
+            color: #0d47a1;
+        }
+        .key-status {
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+        .key-loaded { color: #2e7d32; }
+        .key-missing { color: #c62828; }
+
+        /* 自定义滚动条 */
+        .content-box::-webkit-scrollbar {
+            width: 8px;
+        }
+        .content-box::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+        .content-box::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 4px;
+        }
+        .content-box::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+
+        #decryptedContent {
+            white-space: pre-wrap;
+            font-family: 'Consolas', 'Monaco', monospace;
+            background: #fafafa;
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid #eee;
+            height: 100%;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container main-container">
+    <h2 class="text-center mb-4 fw-bold text-secondary">隐私邮件搜索与解密</h2>
+
+    <!-- 顶部：私钥加载区 -->
+    <div class="alert key-alert d-flex justify-content-between align-items-center mb-4 shadow-sm">
+        <div>
+            <h5 class="mb-1">🔑 第一步：加载您的私钥</h5>
+            <small class="text-muted">私钥仅在本地浏览器内存中使用，不会上传到服务器。</small>
+        </div>
+        <div class="text-end">
+            <input type="file" id="privateKeyFile" accept=".pem" class="form-control form-control-sm d-inline-block" style="width: 220px;">
+            <span id="keyStatusText" class="key-status key-missing ms-2">❌ 未加载</span>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- 左侧：搜索区 -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <span>🔍 搜索邮件</span>
+                    <span id="indexStatusBadge" class="status-badge">检查中...</span>
+                </div>
+                <div class="card-body">
+                    <div class="input-group mb-3">
+                        <input type="text" id="searchInput" class="form-control form-control-lg" placeholder="输入中文关键词 (如：发票、合同)...">
+                        <button class="btn btn-primary px-4" type="button" id="searchBtn">搜索</button>
+                    </div>
+                    <div id="searchResults" class="content-box">
+                        <div class="text-center text-muted mt-5">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="currentColor" class="bi bi-search mb-2 opacity-50" viewBox="0 0 16 16">
+                                <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+                            </svg>
+                            <p>请输入关键词开始搜索</p>
+                            <small>结果基于加密索引匹配</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右侧：解密展示区 -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header success">
+                    <span>📄 邮件明文</span>
+                    <span class="status-badge">本地解密</span>
+                </div>
+                <div class="card-body">
+                    <div id="contentDisplay" class="content-box">
+                        <div class="text-center text-muted mt-5">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="currentColor" class="bi bi-file-earmark-lock mb-2 opacity-50" viewBox="0 0 16 16">
+                                <path d="M7 14s-1 0-1-1V11a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2s0 1-1 1H7zm3-5a1 1 0 0 0-1 1v1H9V9a1 1 0 0 0-1-1H7a1 1 0 0 0-1 1v2h1v-1a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v1h-1V9a1 1 0 0 0-1-1H9z"/>
+                                <path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2zM9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5v2z"/>
+                            </svg>
+                            <p>点击左侧结果的 "🔓 解密查看"</p>
+                            <small>内容将在本地安全解密后显示</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 底部：系统信息 (保留原设计) -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header info">
+                    <span>📊 系统状态与信息</span>
+                </div>
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-6 mb-3 mb-md-0">
+                            <h6 class="fw-bold text-secondary">🔑 公钥指纹</h6>
+                            <pre id="publicKey" class="bg-light p-2 rounded border small text-truncate" style="max-height: 60px; overflow: hidden; font-family: monospace;">加载中...</pre>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="fw-bold text-secondary">📈 统计数据</h6>
+                            <ul class="list-group list-group-flush small">
+                                <li class="list-group-item d-flex justify-content-between bg-transparent">
+                                    <span>数据集规模:</span> <strong class="text-dark">21,766 封邮件</strong>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between bg-transparent">
+                                    <span>数据分块:</span> <strong class="text-dark">22 个块 (Block)</strong>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between bg-transparent">
+                                    <span>索引状态:</span> <strong id="textIndexStatus" class="text-warning">检测中...</strong>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 解密进度模态框 -->
+<div class="modal fade" id="decryptModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0">
+                <h5 class="modal-title fw-bold">🔐 正在安全解密</h5>
+            </div>
+            <div class="modal-body text-center py-4">
+                <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;"></div>
+                <p class="fw-medium text-secondary" id="decryptStepText">正在初始化...</p>
+                <small class="text-muted d-block mt-2">所有解密操作均在您的浏览器本地完成</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Scripts -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<!-- Forge Library for RSA/PEM handling -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/forge/1.3.1/forge.min.js"></script>
+
+<script>
+    let userPrivateKey = null; // 内存中的私钥对象
+
+    $(document).ready(function() {
+        initSystem();
+
+        // 1. 私钥加载监听
+        $('#privateKeyFile').on('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                try {
+                    const pem = event.target.result;
+                    const pki = forge.pki;
+                    const privateKey = pki.privateKeyFromPem(pem);
+                    userPrivateKey = privateKey;
+
+                    $('#keyStatusText').text('✅ 已加载').removeClass('key-missing').addClass('key-loaded');
+                    // 简单的成功提示，不阻断操作
+                    console.log("私钥加载成功");
+                } catch (err) {
+                    console.error(err);
+                    alert('❌ 私钥格式错误！\n请确保选择的是正确的 .pem 私钥文件。');
+                    $('#keyStatusText').text('❌ 错误').removeClass('key-loaded').addClass('key-missing');
+                }
+            };
+            reader.readAsText(file);
+        });
+
+        // 2. 搜索事件绑定
+        $('#searchBtn').click(performSearch);
+        $('#searchInput').keypress(function(e) {
+            if(e.which == 13) performSearch();
+        });
+
+        // 初始化状态检查
+        checkIndexStatus();
+    });
+
+    function initSystem() {
+        $.get('/api/public_key', function(data) {
+            // 显示公钥的一小部分作为指纹
+            const cleanKey = data.public_key.replace(/\n/g, ' ');
+            $('#publicKey').text(cleanKey);
+        }).fail(() => $('#publicKey').text("无法获取公钥"));
+    }
+
+    function checkIndexStatus() {
+        $.get('/api/status', function(data) {
+            const badge = $('#indexStatusBadge');
+            const textStatus = $('#textIndexStatus');
+
+            if (data.index_loaded) {
+                badge.removeClass('bg-danger').addClass('bg-success').text('✅ 索引就绪');
+                textStatus.text(`✅ 已加载 (${data.keyword_count} 个关键词)`).removeClass('text-warning').addClass('text-success');
+            } else {
+                badge.removeClass('bg-success').addClass('bg-danger').text('❌ 无索引');
+                textStatus.text('❌ 未找到索引文件').removeClass('text-success').addClass('text-danger');
+            }
+        }).fail(() => {
+            $('#indexStatusBadge').text('❌ 离线');
+            $('#textIndexStatus').text('❌ 无法连接服务器').addClass('text-danger');
+        });
+    }
+
+    function performSearch() {
+        const keyword = $('#searchInput').val().trim();
+        if (!keyword) {
+            $('#searchInput').focus();
+            return;
+        }
+
+        $('#searchResults').html('<div class="text-center py-5"><div class="spinner-border text-primary"></div><p class="mt-2 text-muted">正在加密查询...</p></div>');
+
+        $.ajax({
+            url: '/api/search',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ keyword: keyword }),
+            success: function(results) {
+                $('#searchResults').empty();
+                if (!results || results.length === 0) {
+                    $('#searchResults').html('<div class="text-center text-muted py-5"><p>😕 未找到相关邮件</p><small>请尝试其他关键词</small></div>');
+                    return;
+                }
+
+                results.forEach(res => {
+                    const itemHtml = `
+                        <div class="message-item">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <strong class="text-primary">${res.original_name}</strong>
+                                    <div class="small text-muted mt-1">📍 位于块: <span class="badge bg-light text-dark border">${res.block_id}</span></div>
+                                </div>
+                                <button class="btn btn-sm btn-outline-success" onclick="startDecryptProcess('${res.block_id}', '${res.original_name}')">
+                                    🔓 解密查看
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    $('#searchResults').append(itemHtml);
+                });
+            },
+            error: function(xhr) {
+                let msg = xhr.statusText;
+                if (xhr.status === 415) msg = "数据格式错误 (请刷新页面)";
+                if (xhr.status === 500) msg = "服务器内部错误 (索引可能未构建)";
+                $('#searchResults').html(`<div class="text-center text-danger py-5"><p>❌ 搜索失败</p><small>${msg}</small></div>`);
+            }
+        });
+    }
+
+    // --- 核心解密流程 ---
+    // 辅助函数：暂停指定毫秒数
+    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+    async function startDecryptProcess(blockId, filename) {
+        // 0. 前置检查
+        if (!userPrivateKey) {
+            alert('⚠️ 请先在页面顶部加载您的私钥文件 (private_key.pem)！');
+            $('html, body').animate({ scrollTop: 0 }, 500);
+            return;
+        }
+
+        // 1. 初始化模态框
+        const modalElement = document.getElementById('decryptModal');
+        // 如果已有实例则复用，否则创建新实例
+        let modal = bootstrap.Modal.getInstance(modalElement);
+        if (!modal) {
+            modal = new bootstrap.Modal(modalElement, { backdrop: 'static', keyboard: false });
+        }
+
+        modal.show();
+        $('#decryptStepText').text('正在准备...');
+
+        try {
+            // --- Step 1: 获取加密密钥 ---
+            $('#decryptStepText').html('<span class="text-primary">1/4</span> 正在从服务器获取加密密钥...');
+            const keyResp = await $.ajax({
+                url: '/api/block_encrypted_key',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ block_id: blockId })
+            });
+            // 🕒 停留 0.5 秒让用户看到这一步
+            await sleep(500);
+
+            // --- Step 2: RSA 本地解密 ---
+            $('#decryptStepText').html('<span class="text-primary">2/4</span> 正在本地使用私钥解密 AES 密钥...');
+            const encryptedKeyBytes = forge.util.decode64(keyResp.encrypted_key_b64);
+
+            let aesKeyHex;
+            try {
+                const decryptedBytes = userPrivateKey.decrypt(encryptedKeyBytes, 'RSA-OAEP', { md: forge.md.sha256.create() });
+                aesKeyHex = forge.util.bytesToHex(decryptedBytes);
+            } catch (e) {
+                throw new Error("私钥不匹配：无法解密密钥。请确认私钥是否正确。");
+            }
+            // 🕒 停留 0.5 秒
+            await sleep(500);
+
+            // --- Step 3: 下载加密文件 ---
+            $('#decryptStepText').html('<span class="text-primary">3/4</span> 正在下载加密数据包...');
+            const fileBlob = await $.ajax({
+                url: '/api/download_encrypted_file',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ block_id: blockId, filename: filename + '.enc' }),
+                xhrFields: { responseType: 'blob' }
+            });
+
+            await sleep(300);
+
+            // --- Step 4: AES 本地解密 ---
+            $('#decryptStepText').html('<span class="text-primary">4/4</span> 正在本地解密邮件内容...');
+
+            const arrayBuffer = await fileBlob.arrayBuffer();
+            const uint8ArrayData = new Uint8Array(arrayBuffer);
+
+            const nonce = uint8ArrayData.slice(0, 12);
+            const ciphertext = uint8ArrayData.slice(12);
+
+            // 转换密钥格式
+            const aesKeyBytesString = forge.util.hexToBytes(aesKeyHex);
+            const aesKeyTypedArray = new Uint8Array(aesKeyBytesString.length);
+            for (let i = 0; i < aesKeyBytesString.length; i++) {
+                aesKeyTypedArray[i] = aesKeyBytesString.charCodeAt(i);
+            }
+
+            const cryptoKey = await window.crypto.subtle.importKey(
+                "raw", aesKeyTypedArray, { name: "AES-GCM" }, false, ["decrypt"]
+            );
+
+            const decryptedBuffer = await window.crypto.subtle.decrypt(
+                { name: "AES-GCM", iv: nonce }, cryptoKey, ciphertext
+            );
+
+            await sleep(300);
+
+            // --- Step 5: 文本解码与渲染 ---
+            $('#decryptStepText').html('<span class="text-success">✅ 解密成功</span> 正在渲染内容...');
+
+            let content = "";
+            try {
+                content = new TextDecoder('utf-8').decode(decryptedBuffer);
+                if (content.includes('ï') || content.includes('')) {
+                    content = new TextDecoder('gbk').decode(decryptedBuffer);
+                }
+            } catch (decodeErr) {
+                content = new TextDecoder('gbk').decode(decryptedBuffer);
+            }
+
+            // 【关键修复】先渲染内容，再关闭对话框
+            displayContent(filename, content);
+
+
+            await sleep(150);
+            modal.hide();
+
+            console.log("✅ 流程结束：对话框已关闭");
+
+        } catch (error) {
+            console.error("❌ 解密流程出错:", error);
+            // 错误时也稍作停留再报错，避免闪退感
+            await sleep(500);
+            modal.hide();
+            alert('❌ 解密失败:\n' + error.message);
+        }
+    }
+
+    function displayContent(filename, content) {
+        // 转义 HTML 防止 XSS
+        const escapedContent = content.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+        $('#contentDisplay').html(`
+            <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                <h5 class="mb-0 text-success fw-bold">📄 ${filename}</h5>
+                <span class="badge bg-success">解密成功</span>
+            </div>
+            <div id="decryptedContent">${escapedContent}</div>
+        `);
+    }
+</script>
+
+</body>
+</html>
