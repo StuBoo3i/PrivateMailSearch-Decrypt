@@ -1,5 +1,7 @@
 # 隐私邮件搜索与解密系统
 
+视频链接：【密码学作业】 https://www.bilibili.com/video/BV1sWPEzWEFQ/?share_source=copy_web&vd_source=d3b93906720d26bff77456b1beac8bfb
+
 一个安全且隐私优先的邮件搜索系统，允许用户在**不向服务器泄露邮件内容或搜索关键词**的前提下（ 可搜索加密 (Searchable Encryption, SE) 和隐匿查询 (Private Information Retrieval, PIR)），完成邮件的搜索与解密，基于 Flask、Jieba（中文 NLP）和现代 Web 加密技术构建。
 
 ## 数据集
